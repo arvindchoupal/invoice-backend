@@ -26,22 +26,15 @@ const report_routes_1 = require("./routes/report.routes");
 const settings_routes_1 = require("./routes/settings.routes");
 const error_1 = require("./middleware/error");
 exports.app = (0, express_1.default)();
-exports.app.get("/", (_, res) => {
-    res.send("API runnings");
-});
 exports.app.use((0, helmet_1.default)());
-exports.app.use((0, cors_1.default)({
-    origin: true,
-    credentials: true
-}));
-// app.options(/.*/, cors());
+exports.app.use((0, cors_1.default)());
 exports.app.use((0, express_rate_limit_1.default)({ windowMs: 15 * 60 * 1000, limit: 300 }));
 exports.app.use(express_1.default.json({ limit: "2mb" }));
 exports.app.use(express_1.default.urlencoded({ extended: true }));
 exports.app.use((0, morgan_1.default)(env_1.env.nodeEnv === "production" ? "combined" : "dev"));
 exports.app.use("/uploads", express_1.default.static(path_1.default.resolve(env_1.env.uploadDir)));
 exports.app.get("/", (_, res) => {
-    res.send("API running");
+    res.send("API runnings");
 });
 exports.app.get("/health", (_req, res) => res.json({ ok: true, service: "invoice-backend" }));
 exports.app.use("/api/auth", auth_routes_1.authRouter);

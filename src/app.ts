@@ -21,25 +21,19 @@ import { settingsRouter } from "./routes/settings.routes";
 import { errorHandler, notFound } from "./middleware/error";
 
 export const app = express();
-app.get("/", (_, res) => {
-  res.send("API runnings");
-});
 
 app.use(helmet());
 app.use(
-  cors({
-    origin: true,
-    credentials: true
-  })
+  cors()
 );
-// app.options(/.*/, cors());
+
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 300 }));
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
 app.use("/uploads", express.static(path.resolve(env.uploadDir)));
 app.get("/", (_, res) => {
-    res.send("API running");
+    res.send("API runnings");
   });
 app.get("/health", (_req, res) => res.json({ ok: true, service: "invoice-backend" }));
 app.use("/api/auth", authRouter);
