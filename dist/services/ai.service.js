@@ -29,6 +29,8 @@ async function extractTextFromFile(filePath, mimeType) {
     const stats = await promises_1.default.stat(filePath);
     return `Uploaded ${mimeType} image (${stats.size} bytes). Connect a managed OCR provider or Tesseract worker here for production extraction.`;
 }
+
+
 function inferInvoiceFromText(text) {
     const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
     const amount = Number(text.match(/(?:total|amount due)\D+(\d+(?:\.\d{1,2})?)/i)?.[1] ?? 0);

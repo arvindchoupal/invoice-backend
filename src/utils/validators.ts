@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { PDF_STYLES } from "../services/pdf.service";
+
+const pdfStyleEnum = z.enum(PDF_STYLES as unknown as [string, ...string[]]);
 
 export const signupSchema = z.object({
   name: z.string().min(2),
@@ -56,6 +59,7 @@ export const invoiceSchema = z.object({
   customerAddress: z.string().optional(),
   notes: z.string().optional(),
   terms: z.string().optional(),
+  pdfStyle: pdfStyleEnum.optional(),
   items: z.array(invoiceItemSchema).min(1),
 });
 
@@ -69,6 +73,7 @@ export const settingsSchema = z.object({
   taxRate: z.coerce.number().min(0).max(100).default(0),
   theme: z.enum(["light", "dark", "system"]).default("system"),
   invoicePrefix: z.string().min(1).max(12).default("INV"),
+  defaultPdfStyle: pdfStyleEnum.optional(),
 });
 
 export const textToInvoiceSchema = z.object({

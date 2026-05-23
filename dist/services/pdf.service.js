@@ -95,7 +95,7 @@ function drawHeader(doc, invoice, theme, settings) {
     if (theme.header === "solid") {
         doc.rect(0, 0, 595, 132).fill(theme.accentDark);
         drawLogo(doc, settings, 48, 38, 42);
-        doc.fillColor("#ffffff").fontSize(24).text(String(invoice.business_name ?? "Invoice Maker"), textX, 42);
+        doc.fillColor("#ffffff").fontSize(24).text(String(invoice.business_name ?? "InvoiceWala"), textX, 42);
         doc.fontSize(10).fillColor("#cbd5e1").text(String(invoice.business_address ?? ""), textX, 72, { width: 250 });
         doc.fillColor(theme.accent).roundedRect(410, 38, 136, 54, 6).fill();
         doc.fillColor("#ffffff").fontSize(22).text("INVOICE", 426, 48);
@@ -106,7 +106,7 @@ function drawHeader(doc, invoice, theme, settings) {
         doc.rect(0, 0, 250, 132).fill(theme.accentDark);
         doc.rect(250, 0, 345, 132).fill(theme.soft);
         drawLogo(doc, settings, 48, 38, 38);
-        doc.fillColor("#ffffff").fontSize(22).text(String(invoice.business_name ?? "Invoice Maker"), hasLogo ? 94 : 48, 40, { width: hasLogo ? 130 : 170 });
+        doc.fillColor("#ffffff").fontSize(22).text(String(invoice.business_name ?? "InvoiceWala"), hasLogo ? 94 : 48, 40, { width: hasLogo ? 130 : 170 });
         doc.fillColor(theme.text).fontSize(30).text("INVOICE", 365, 42);
         doc.fontSize(11).fillColor(theme.muted).text(String(invoice.invoice_number), 368, 78);
         return;
@@ -114,7 +114,7 @@ function drawHeader(doc, invoice, theme, settings) {
     if (theme.header === "side") {
         doc.rect(0, 0, 24, 842).fill(theme.accent);
         drawLogo(doc, settings, 52, 38, 38);
-        doc.fillColor(theme.text).fontSize(24).text(String(invoice.business_name ?? "Invoice Maker"), hasLogo ? 98 : 52, 42);
+        doc.fillColor(theme.text).fontSize(24).text(String(invoice.business_name ?? "InvoiceWala"), hasLogo ? 98 : 52, 42);
         doc.fillColor(theme.accentDark).fontSize(32).text("INVOICE", 390, 40);
         doc.fontSize(10).fillColor(theme.muted).text(String(invoice.invoice_number), 394, 78);
         return;
@@ -122,12 +122,12 @@ function drawHeader(doc, invoice, theme, settings) {
     if (theme.header === "bar") {
         doc.rect(48, 34, 500, 10).fill(theme.accent);
         drawLogo(doc, settings, 48, 58, 38);
-        doc.fillColor(theme.text).fontSize(24).text(String(invoice.business_name ?? "Invoice Maker"), hasLogo ? 94 : 48, 64);
+        doc.fillColor(theme.text).fontSize(24).text(String(invoice.business_name ?? "InvoiceWala"), hasLogo ? 94 : 48, 64);
         doc.fontSize(34).fillColor(theme.accentDark).text("INVOICE", 374, 58);
         doc.fontSize(10).fillColor(theme.muted).text(String(invoice.invoice_number), 380, 94);
         return;
     }
-    doc.fillColor(theme.text).fontSize(24).text(String(invoice.business_name ?? "Invoice Maker"), textX, 42);
+    doc.fillColor(theme.text).fontSize(24).text(String(invoice.business_name ?? "InvoiceWala"), textX, 42);
     doc.fontSize(10).fillColor(theme.muted).text(String(invoice.business_address ?? ""), textX, 72, { width: 260 });
     doc.moveTo(48, 112).lineTo(548, 112).strokeColor(theme.accent).lineWidth(2).stroke();
     doc.fillColor(theme.text).fontSize(30).text("INVOICE", 400, 42);

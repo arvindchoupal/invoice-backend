@@ -24,7 +24,7 @@ export async function sendEmail(to: string, subject: string, html: string) {
 
 export function sendPasswordResetEmail(to: string, token: string) {
   const url = `${env.frontendUrl}/forgot-password?token=${token}`;
-  return sendEmail(to, "Reset your Invoice Maker password", `<p>Use this secure link to reset your password:</p><p><a href="${url}">${url}</a></p>`);
+  return sendEmail(to, "Reset your InvoiceWala password", `<p>Use this secure link to reset your password:</p><p><a href="${url}">${url}</a></p>`);
 }
 
 export function sendInvoiceEmail(to: string, invoiceNumber: string, paymentUrl?: string) {

@@ -5,10 +5,42 @@ import { requireAuth } from "../middleware/auth";
 import { sendInvoiceEmail, sendReminderEmail } from "../services/email.service";
 import { PDF_STYLE_META, PDF_STYLES, normalizePdfStyle, renderInvoicePdf } from "../services/pdf.service";
 import { calculateInvoice, makeInvoiceNumber } from "../utils/invoice";
+import { z } from "zod";
 import { invoiceSchema } from "../utils/validators";
+import {logger} from "../utils/logger";
+
+type InvoiceBody = z.infer<typeof invoiceSchema>;
+
+function invoiceSqlParams(body: InvoiceBody, totals: ReturnType<typeof calculateInvoice>, pdfStyle: string) {
+  return {
+    clientId: body.clientId ?? null,
+    invoiceNumber: body.invoiceNumber ?? "",
+    issueDate: body.issueDate,
+    dueDate: body.dueDate,
+    status: body.status,
+    currency: body.currency,
+    businessName: body.businessName,
+    businessEmail: body.businessEmail || null,
+    businessTaxId: body.businessTaxId || null,
+    businessAddress: body.businessAddress || null,
+    customerName: body.customerName,
+    customerEmail: body.customerEmail || null,
+    customerTaxId: body.customerTaxId || null,
+    customerAddress: body.customerAddress || null,
+    notes: body.notes || null,
+    terms: body.terms || null,
+    pdfStyle,
+    ...totals,
+  };
+}
 
 export const invoiceRouter = Router();
 invoiceRouter.use(requireAuth);
+
+async function defaultPdfStyleForUser(userId: number) {
+  const [rows] = await pool.execute("SELECT default_pdf_style FROM settings WHERE user_id = :userId", { userId });
+  return normalizePdfStyle((rows as Array<{ default_pdf_style?: string }>)[0]?.default_pdf_style);
+}
 
 async function nextInvoiceNumber(userId: number, prefix = "INV") {
   const [rows] = await pool.execute("SELECT invoice_counter FROM settings WHERE user_id = :userId", { userId });
@@ -104,20 +136,18 @@ invoiceRouter.post("/", async (req:any, res, next) => {
     const body = invoiceSchema.parse(req.body);
     const totals = calculateInvoice(body.items);
     const invoiceNumber = body.invoiceNumber || (await nextInvoiceNumber(req.user!.id));
+    const pdfStyle = normalizePdfStyle(body.pdfStyle ?? (await defaultPdfStyleForUser(req.user!.id)));
     await connection.beginTransaction();
-    console.log(totals)
-    console.log({ userId: req.user!.id, invoiceNumber, ...body, ...totals })
 
     const [result] = await connection.execute(
       `INSERT INTO invoices (user_id, client_id, invoice_number, issue_date, due_date, status, currency, business_name,
         business_email, business_tax_id, business_address, customer_name, customer_email, customer_tax_id, customer_address,
-        notes, terms, subtotal, tax_total, discount_total, total)
+        notes, terms, pdf_style, subtotal, tax_total, discount_total, total)
        VALUES (:userId, :clientId, :invoiceNumber, :issueDate, :dueDate, :status, :currency, :businessName, :businessEmail,
         :businessTaxId, :businessAddress, :customerName, :customerEmail, :customerTaxId, :customerAddress, :notes, :terms,
-        :subtotal, :taxTotal, :discountTotal, :total)`,
-      { userId: req.user!.id, clientId: body.clientId ?? null,  invoiceNumber, ...body, ...totals },
+        :pdfStyle, :subtotal, :taxTotal, :discountTotal, :total)`,
+      { userId: req.user!.id, ...invoiceSqlParams(body, totals, pdfStyle), invoiceNumber },
     );
-    console.log(result)
 
     const invoiceId = (result as { insertId: number }).insertId;
     for (const item of body.items) {
@@ -128,9 +158,8 @@ invoiceRouter.post("/", async (req:any, res, next) => {
       );
     }
     await connection.commit();
-    res.status(201).json({ id: invoiceId, invoiceNumber, ...body, ...totals });
+    res.status(201).json({ id: invoiceId, invoiceNumber, pdfStyle, ...body, ...totals });
   } catch (error) {
-    console.log(error)
     await connection.rollback();
     next(error);
   } finally {
@@ -154,18 +183,20 @@ invoiceRouter.get("/:id", async (req:any, res, next) => {
 });
 
 invoiceRouter.put("/:id", async (req:any, res, next) => {
+  logger.error("Unhandled errorhh", { hi:"hi" });
   const connection = await pool.getConnection();
   try {
     const body = invoiceSchema.parse(req.body);
     const totals = calculateInvoice(body.items);
+    const pdfStyle = normalizePdfStyle(body.pdfStyle ?? (await defaultPdfStyleForUser(req.user!.id)));
     await connection.beginTransaction();
     const [result] = await connection.execute(
       `UPDATE invoices SET client_id=:clientId, invoice_number=:invoiceNumber, issue_date=:issueDate, due_date=:dueDate,
        status=:status, currency=:currency, business_name=:businessName, business_email=:businessEmail, business_tax_id=:businessTaxId,
        business_address=:businessAddress, customer_name=:customerName, customer_email=:customerEmail, customer_tax_id=:customerTaxId,
-       customer_address=:customerAddress, notes=:notes, terms=:terms, subtotal=:subtotal, tax_total=:taxTotal,
+       customer_address=:customerAddress, notes=:notes, terms=:terms, pdf_style=:pdfStyle, subtotal=:subtotal, tax_total=:taxTotal,
        discount_total=:discountTotal, total=:total WHERE id=:id AND user_id=:userId`,
-      { id: req.params.id, userId: req.user!.id, ...body, invoiceNumber: body.invoiceNumber ?? "", ...totals } as never,
+      { id: req.params.id, userId: req.user!.id, ...invoiceSqlParams(body, totals, pdfStyle) },
     );
     if ((result as { affectedRows: number }).affectedRows === 0) throw new AppError(404, "Invoice not found");
     await connection.execute("DELETE FROM invoice_items WHERE invoice_id = :id", { id: req.params.id });
@@ -177,8 +208,11 @@ invoiceRouter.put("/:id", async (req:any, res, next) => {
       );
     }
     await connection.commit();
-    res.json({ id: Number(req.params.id), ...body, ...totals });
+    res.json({ id: Number(req.params.id), pdfStyle, ...body, ...totals });
   } catch (error) {
+    console.log({
+      error
+    })
     await connection.rollback();
     next(error);
   } finally {
@@ -198,10 +232,10 @@ invoiceRouter.post("/:id/duplicate", async (req:any, res, next) => {
     const [result] = await connection.execute(
       `INSERT INTO invoices (user_id, client_id, invoice_number, issue_date, due_date, status, currency, business_name,
         business_email, business_tax_id, business_address, customer_name, customer_email, customer_tax_id, customer_address,
-        notes, terms, subtotal, tax_total, discount_total, total)
+        notes, terms, pdf_style, subtotal, tax_total, discount_total, total)
        SELECT user_id, client_id, :invoiceNumber, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), 'Draft', currency, business_name,
         business_email, business_tax_id, business_address, customer_name, customer_email, customer_tax_id, customer_address,
-        notes, terms, subtotal, tax_total, discount_total, total
+        notes, terms, pdf_style, subtotal, tax_total, discount_total, total
        FROM invoices WHERE id = :id AND user_id = :userId`,
       { invoiceNumber, id: req.params.id, userId: req.user!.id },
     );
@@ -241,7 +275,7 @@ invoiceRouter.get("/:id/pdf", async (req:any, res, next) => {
     const [items] = await pool.execute("SELECT * FROM invoice_items WHERE invoice_id = :id", { id: req.params.id });
     const [settingsRows] = await pool.execute("SELECT logo_url, company_name, company_email, company_address, company_tax_id FROM settings WHERE user_id = :userId", { userId: req.user!.id });
     const settings = (settingsRows as Array<Record<string, unknown>>)[0] ?? {};
-    const style = normalizePdfStyle(req.query.style);
+    const style = normalizePdfStyle(req.query.style ?? invoice.pdf_style ?? (await defaultPdfStyleForUser(req.user!.id)));
     const buffer = await renderInvoicePdf(invoice, items as Array<Record<string, unknown>>, style, settings);
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${invoice.invoice_number}-${style}.pdf"`);
@@ -272,7 +306,7 @@ invoiceRouter.get("/:id/pdf2", async (req:any, res, next) => {
       { id: req.params.id }
     );
 
-    const style = normalizePdfStyle(req.query.style);
+    const style = normalizePdfStyle(req.query.style ?? invoice.pdf_style ?? (await defaultPdfStyleForUser(req.user!.id)));
 
     const [settingsRows] = await pool.execute(
       "SELECT logo_url, company_name, company_email, company_address, company_tax_id FROM settings WHERE user_id = :userId",

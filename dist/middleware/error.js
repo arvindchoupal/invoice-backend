@@ -4,6 +4,7 @@ exports.AppError = void 0;
 exports.notFound = notFound;
 exports.errorHandler = errorHandler;
 const zod_1 = require("zod");
+
 const logger_1 = require("../utils/logger");
 class AppError extends Error {
     statusCode;

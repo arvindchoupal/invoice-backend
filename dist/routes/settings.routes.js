@@ -21,10 +21,11 @@ exports.settingsRouter.get("/", async (req, res, next) => {
 exports.settingsRouter.put("/", async (req, res, next) => {
     try {
         const body = validators_1.settingsSchema.parse(req.body);
-        await db_1.pool.execute(`INSERT INTO settings (user_id, company_name, company_email, company_address, company_tax_id, currency, tax_name, tax_rate, theme, invoice_prefix)
-       VALUES (:userId, :companyName, :companyEmail, :companyAddress, :companyTaxId, :currency, :taxName, :taxRate, :theme, :invoicePrefix)
+        await db_1.pool.execute(`INSERT INTO settings (user_id, company_name, company_email, company_address, company_tax_id, currency, tax_name, tax_rate, theme, invoice_prefix, default_pdf_style)
+       VALUES (:userId, :companyName, :companyEmail, :companyAddress, :companyTaxId, :currency, :taxName, :taxRate, :theme, :invoicePrefix, :defaultPdfStyle)
        ON DUPLICATE KEY UPDATE company_name=:companyName, company_email=:companyEmail, company_address=:companyAddress,
-       company_tax_id=:companyTaxId, currency=:currency, tax_name=:taxName, tax_rate=:taxRate, theme=:theme, invoice_prefix=:invoicePrefix`, { userId: req.user.id, ...body });
+       company_tax_id=:companyTaxId, currency=:currency, tax_name=:taxName, tax_rate=:taxRate, theme=:theme, invoice_prefix=:invoicePrefix,
+       default_pdf_style=:defaultPdfStyle`, { userId: req.user.id, defaultPdfStyle: body.defaultPdfStyle ?? "classic", ...body });
         res.json(body);
     }
     catch (error) {

@@ -2,6 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.textToInvoiceSchema = exports.settingsSchema = exports.invoiceSchema = exports.invoiceItemSchema = exports.clientSchema = exports.resetPasswordSchema = exports.forgotPasswordSchema = exports.loginSchema = exports.signupSchema = void 0;
 const zod_1 = require("zod");
+const pdf_service_1 = require("../services/pdf.service");
+const pdfStyleEnum = zod_1.z.enum(pdf_service_1.PDF_STYLES);
 exports.signupSchema = zod_1.z.object({
     name: zod_1.z.string().min(2),
     email: zod_1.z.email(),
@@ -52,6 +54,7 @@ exports.invoiceSchema = zod_1.z.object({
     customerAddress: zod_1.z.string().optional(),
     notes: zod_1.z.string().optional(),
     terms: zod_1.z.string().optional(),
+    pdfStyle: pdfStyleEnum.optional(),
     items: zod_1.z.array(exports.invoiceItemSchema).min(1),
 });
 exports.settingsSchema = zod_1.z.object({
@@ -64,6 +67,7 @@ exports.settingsSchema = zod_1.z.object({
     taxRate: zod_1.z.coerce.number().min(0).max(100).default(0),
     theme: zod_1.z.enum(["light", "dark", "system"]).default("system"),
     invoicePrefix: zod_1.z.string().min(1).max(12).default("INV"),
+    defaultPdfStyle: pdfStyleEnum.optional(),
 });
 exports.textToInvoiceSchema = zod_1.z.object({
     text: zod_1.z.string().min(10),

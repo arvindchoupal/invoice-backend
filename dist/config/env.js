@@ -24,7 +24,7 @@ exports.env = {
         port: Number(process.env.SMTP_PORT ?? 587),
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
-        from: process.env.EMAIL_FROM ?? "Invoice Maker <no-reply@example.com>",
+        from: process.env.EMAIL_FROM ?? "InvoiceWala <billing@invoicewala.shop>",
     },
     stripeSecretKey: process.env.STRIPE_SECRET_KEY,
     stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
