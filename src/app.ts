@@ -36,8 +36,7 @@ app.use(
     allowedHeaders: ["Content-Type","Authorization"]
   })
 );
-
-app.options("*", cors()); // <- ADD
+// app.options(/.*/, cors());
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 300 }));
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
