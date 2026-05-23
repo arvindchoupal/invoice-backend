@@ -38,7 +38,7 @@ exports.app.use((0, cors_1.default)({
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"]
 }));
-exports.app.options("*", (0, cors_1.default)()); // <- ADD
+// app.options(/.*/, cors());
 exports.app.use((0, express_rate_limit_1.default)({ windowMs: 15 * 60 * 1000, limit: 300 }));
 exports.app.use(express_1.default.json({ limit: "2mb" }));
 exports.app.use(express_1.default.urlencoded({ extended: true }));
