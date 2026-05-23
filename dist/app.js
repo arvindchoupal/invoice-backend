@@ -27,7 +27,7 @@ const settings_routes_1 = require("./routes/settings.routes");
 const error_1 = require("./middleware/error");
 exports.app = (0, express_1.default)();
 exports.app.use((0, helmet_1.default)());
-exports.app.use((0, cors_1.default)({ origin: env_1.env.frontendUrl, credentials: true }));
+exports.app.use((0, cors_1.default)());
 exports.app.use((0, express_rate_limit_1.default)({ windowMs: 15 * 60 * 1000, limit: 300 }));
 exports.app.use(express_1.default.json({ limit: "2mb" }));
 exports.app.use(express_1.default.urlencoded({ extended: true }));
