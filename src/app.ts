@@ -29,12 +29,15 @@ app.use(
       "http://localhost:3000",
       "https://invoicewala.shop",
       "https://www.invoicewala.shop",
+      "https://api.invoicewala.shop"
     ],
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    methods: ["GET","POST","PUT","DELETE","PATCH","OPTIONS"],
     credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type","Authorization"]
   })
 );
+
+app.options("*", cors()); // <- ADD
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, limit: 300 }));
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true }));
