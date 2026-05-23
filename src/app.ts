@@ -21,19 +21,15 @@ import { settingsRouter } from "./routes/settings.routes";
 import { errorHandler, notFound } from "./middleware/error";
 
 export const app = express();
+app.get("/", (_, res) => {
+  res.send("API runnings");
+});
 
 app.use(helmet());
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "https://invoicewala.shop",
-      "https://www.invoicewala.shop",
-      "https://api.invoicewala.shop"
-    ],
-    methods: ["GET","POST","PUT","DELETE","PATCH","OPTIONS"],
-    credentials: true,
-    allowedHeaders: ["Content-Type","Authorization"]
+    origin: true,
+    credentials: true
   })
 );
 // app.options(/.*/, cors());
