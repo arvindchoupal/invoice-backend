@@ -27,7 +27,16 @@ const settings_routes_1 = require("./routes/settings.routes");
 const error_1 = require("./middleware/error");
 exports.app = (0, express_1.default)();
 exports.app.use((0, helmet_1.default)());
-exports.app.use((0, cors_1.default)());
+exports.app.use((0, cors_1.default)({
+    origin: [
+        "http://localhost:3000",
+        "https://invoicewala.shop",
+        "https://www.invoicewala.shop",
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
+}));
 exports.app.use((0, express_rate_limit_1.default)({ windowMs: 15 * 60 * 1000, limit: 300 }));
 exports.app.use(express_1.default.json({ limit: "2mb" }));
 exports.app.use(express_1.default.urlencoded({ extended: true }));
