@@ -3,8 +3,9 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.adminRouter = void 0;
 const express_1 = require("express");
 const db_1 = require("../config/db");
+const auth_1 = require("../middleware/auth");
 exports.adminRouter = (0, express_1.Router)();
-// adminRouter.use(requireAuth, );
+exports.adminRouter.use(auth_1.requireAuth);
 exports.adminRouter.get("/users", async (_req, res, next) => {
     try {
         const [rows] = await db_1.pool.execute(`SELECT u.id, u.name, u.email, u.role, u.created_at, COUNT(i.id) invoice_count, COALESCE(SUM(i.total),0) total_billed
