@@ -31,6 +31,17 @@ function invoiceSqlParams(body, totals, pdfStyle) {
         ...totals,
     };
 }
+function invoiceItemSqlParams(invoiceId, item) {
+    return {
+        invoiceId,
+        name: item.name,
+        description: item.description || null,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        taxRate: item.taxRate ?? 0,
+        discountRate: item.discountRate ?? 0,
+    };
+}
 exports.invoiceRouter = (0, express_1.Router)();
 exports.invoiceRouter.use(auth_1.requireAuth);
 async function defaultPdfStyleForUser(userId, db = db_1.pool) {
@@ -125,7 +136,7 @@ exports.invoiceRouter.post("/", async (req, res, next) => {
             const invoiceId = result.insertId;
             for (const item of body.items) {
                 await connection.execute(`INSERT INTO invoice_items (invoice_id, name, description, quantity, unit_price, tax_rate, discount_rate)
-           VALUES (:invoiceId, :name, :description, :quantity, :unitPrice, :taxRate, :discountRate)`, { invoiceId, ...item });
+           VALUES (:invoiceId, :name, :description, :quantity, :unitPrice, :taxRate, :discountRate)`, invoiceItemSqlParams(invoiceId, item));
             }
             return { invoiceId, invoiceNumber, pdfStyle };
         });
@@ -172,7 +183,7 @@ exports.invoiceRouter.put("/:id", async (req, res, next) => {
             await connection.execute("DELETE FROM invoice_items WHERE invoice_id = :id", { id: req.params.id });
             for (const item of body.items) {
                 await connection.execute(`INSERT INTO invoice_items (invoice_id, name, description, quantity, unit_price, tax_rate, discount_rate)
-           VALUES (:invoiceId, :name, :description, :quantity, :unitPrice, :taxRate, :discountRate)`, { invoiceId: req.params.id, ...item });
+           VALUES (:invoiceId, :name, :description, :quantity, :unitPrice, :taxRate, :discountRate)`, invoiceItemSqlParams(req.params.id, item));
             }
             return { pdfStyle, invoiceNumber };
         });

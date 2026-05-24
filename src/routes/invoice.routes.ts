@@ -32,6 +32,18 @@ function invoiceSqlParams(body: InvoiceBody, totals: ReturnType<typeof calculate
   };
 }
 
+function invoiceItemSqlParams(invoiceId: number | string, item: InvoiceBody["items"][number]) {
+  return {
+    invoiceId,
+    name: item.name,
+    description: item.description || null,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    taxRate: item.taxRate ?? 0,
+    discountRate: item.discountRate ?? 0,
+  };
+}
+
 export const invoiceRouter = Router();
 invoiceRouter.use(requireAuth);
 
@@ -151,7 +163,7 @@ invoiceRouter.post("/", async (req:any, res, next) => {
         await connection.execute(
           `INSERT INTO invoice_items (invoice_id, name, description, quantity, unit_price, tax_rate, discount_rate)
            VALUES (:invoiceId, :name, :description, :quantity, :unitPrice, :taxRate, :discountRate)`,
-          { invoiceId, ...item },
+          invoiceItemSqlParams(invoiceId, item),
         );
       }
       return { invoiceId, invoiceNumber, pdfStyle };
@@ -204,7 +216,7 @@ invoiceRouter.put("/:id", async (req:any, res, next) => {
         await connection.execute(
           `INSERT INTO invoice_items (invoice_id, name, description, quantity, unit_price, tax_rate, discount_rate)
            VALUES (:invoiceId, :name, :description, :quantity, :unitPrice, :taxRate, :discountRate)`,
-          { invoiceId: req.params.id, ...item },
+          invoiceItemSqlParams(req.params.id, item),
         );
       }
       return { pdfStyle, invoiceNumber };
