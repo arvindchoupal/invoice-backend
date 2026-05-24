@@ -63,7 +63,7 @@ async function nextInvoiceNumber(userId: number, prefix = "INV", db: DbExecutor 
   );
   return makeInvoiceNumber(prefix, counter);
 }
-
+//tewt
 invoiceRouter.get("/", async (req:any, res, next) => {
   try {
     const page = Math.max(Number(req.query.page ?? 1), 1);
