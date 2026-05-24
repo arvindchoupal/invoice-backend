@@ -2,6 +2,9 @@ import { z } from "zod";
 import { PDF_STYLES } from "../services/pdf.service";
 
 const pdfStyleEnum = z.enum(PDF_STYLES as unknown as [string, ...string[]]);
+const emptyToUndefined = (value: unknown) => (typeof value === "string" && value.trim() === "" ? undefined : value);
+const trimmedOptional = z.preprocess(emptyToUndefined, z.string().trim().optional());
+const optionalEmail = z.preprocess(emptyToUndefined, z.email().optional());
 
 export const signupSchema = z.object({
   name: z.string().min(2),
@@ -34,34 +37,50 @@ export const clientSchema = z.object({
 });
 
 export const invoiceItemSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().optional(),
+  name: z.string().trim().min(1, "Line item name is required"),
+  description: trimmedOptional,
   quantity: z.coerce.number().positive(),
   unitPrice: z.coerce.number().nonnegative(),
   taxRate: z.coerce.number().min(0).max(100).default(0),
   discountRate: z.coerce.number().min(0).max(100).default(0),
 });
 
-export const invoiceSchema = z.object({
+export const invoiceSchema = z.preprocess((value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const body = value as Record<string, unknown>;
+  const items = Array.isArray(body.items)
+    ? body.items.filter((item) => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+        const row = item as Record<string, unknown>;
+        return [row.name, row.description, row.quantity, row.unitPrice, row.taxRate, row.discountRate].some((field) => {
+          if (field === null || field === undefined) return false;
+          if (typeof field === "string") return field.trim() !== "" && field.trim() !== "0";
+          if (typeof field === "number") return field !== 0;
+          return true;
+        });
+      })
+    : body.items;
+  return { ...body, items };
+}, z.object({
   clientId: z.coerce.number().int().positive().optional().nullable(),
-  invoiceNumber: z.string().optional(),
-  issueDate: z.string(),
-  dueDate: z.string(),
+  invoiceNumber: trimmedOptional,
+  issueDate: z.string().min(1, "Issue date is required"),
+  dueDate: z.string().min(1, "Due date is required"),
   status: z.enum(["Draft", "Sent", "Paid", "Overdue"]).default("Draft"),
   currency: z.string().min(3).max(3).default("USD"),
-  businessName: z.string().min(2),
-  businessEmail: z.email().optional().or(z.literal("")),
-  businessTaxId: z.string().optional(),
-  businessAddress: z.string().optional(),
-  customerName: z.string().min(2),
-  customerEmail: z.email().optional().or(z.literal("")),
-  customerTaxId: z.string().optional(),
-  customerAddress: z.string().optional(),
-  notes: z.string().optional(),
-  terms: z.string().optional(),
+  businessName: z.string().trim().min(1, "Business name is required"),
+  businessEmail: optionalEmail,
+  businessTaxId: trimmedOptional,
+  businessAddress: trimmedOptional,
+  customerName: z.string().trim().min(1, "Customer name is required"),
+  customerEmail: optionalEmail,
+  customerTaxId: trimmedOptional,
+  customerAddress: trimmedOptional,
+  notes: trimmedOptional,
+  terms: trimmedOptional,
   pdfStyle: pdfStyleEnum.optional(),
-  items: z.array(invoiceItemSchema).min(1),
-});
+  items: z.array(invoiceItemSchema).min(1, "Add at least one line item"),
+}));
 
 export const settingsSchema = z.object({
   companyName: z.string().optional(),

@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import morgan from "morgan";
 import path from "path";
+import { pingDatabase } from "./config/db";
 import { env } from "./config/env";
 import { adminRouter } from "./routes/admin.routes";
 import { aiRouter } from "./routes/ai.routes";
@@ -35,7 +36,14 @@ app.use("/uploads", express.static(path.resolve(env.uploadDir)));
 app.get("/", (_, res) => {
     res.send("API runnings");
   });
-app.get("/health", (_req, res) => res.json({ ok: true, service: "invoice-backend" }));
+app.get("/health", async (_req, res) => {
+  try {
+    await pingDatabase();
+    res.json({ ok: true, service: "invoice-backend", db: "up" });
+  } catch {
+    res.status(503).json({ ok: false, service: "invoice-backend", db: "down" });
+  }
+});
 app.use("/api/auth", authRouter);
 app.use("/api/bookkeeping", bookkeepingRouter);
 app.use("/api/clients", clientRouter);

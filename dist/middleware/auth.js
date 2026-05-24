@@ -10,7 +10,8 @@ function requireAuth(req, res, next) {
         return res.status(401).json({ message: "Authentication required" });
     }
     try {
-        req.user = (0, auth_1.verifyToken)(token);
+        const user = (0, auth_1.verifyToken)(token);
+        req.user = { ...user, role: (0, auth_1.roleForEmail)(user.email, user.role) };
         next();
     }
     catch {

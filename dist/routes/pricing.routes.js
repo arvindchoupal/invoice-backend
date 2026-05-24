@@ -7,7 +7,7 @@ const auth_1 = require("../middleware/auth");
 exports.pricingRouter = (0, express_1.Router)();
 exports.pricingRouter.get("/plans", async (_req, res, next) => {
     try {
-        const [rows] = await db_1.pool.execute("SELECT * FROM subscription_plans ORDER BY FIELD(name, 'free', 'pro', 'business')");
+        const [rows] = await db_1.pool.execute("SELECT * FROM subscription_plans WHERE name <> 'starter' ORDER BY FIELD(name, 'free', 'pro', 'business')");
         res.json(rows);
     }
     catch (error) {

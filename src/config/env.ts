@@ -12,6 +12,9 @@ export const env = {
     user: process.env.DB_USER ?? "root",
     password: process.env.DB_PASSWORD ?? "123456",
     database: process.env.DB_NAME ?? "invoice_maker",
+    /** Keep low on Hostinger shared MySQL (often 5–15 max per user). */
+    connectionLimit: Number(process.env.DB_CONNECTION_LIMIT ?? 5),
+    queueLimit: Number(process.env.DB_QUEUE_LIMIT ?? 25),
   },
   jwtSecret: process.env.JWT_SECRET ?? "local-development-secret-change-me",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",

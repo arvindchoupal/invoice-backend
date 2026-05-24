@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { pool } from "../config/db";
+import { pool, withTransaction, type DbExecutor } from "../config/db";
 import { AppError } from "../middleware/error";
 import { requireAuth } from "../middleware/auth";
 import { sendInvoiceEmail, sendReminderEmail } from "../services/email.service";
@@ -7,8 +7,6 @@ import { PDF_STYLE_META, PDF_STYLES, normalizePdfStyle, renderInvoicePdf } from 
 import { calculateInvoice, makeInvoiceNumber } from "../utils/invoice";
 import { z } from "zod";
 import { invoiceSchema } from "../utils/validators";
-import {logger} from "../utils/logger";
-
 type InvoiceBody = z.infer<typeof invoiceSchema>;
 
 function invoiceSqlParams(body: InvoiceBody, totals: ReturnType<typeof calculateInvoice>, pdfStyle: string) {
@@ -37,15 +35,15 @@ function invoiceSqlParams(body: InvoiceBody, totals: ReturnType<typeof calculate
 export const invoiceRouter = Router();
 invoiceRouter.use(requireAuth);
 
-async function defaultPdfStyleForUser(userId: number) {
-  const [rows] = await pool.execute("SELECT default_pdf_style FROM settings WHERE user_id = :userId", { userId });
+async function defaultPdfStyleForUser(userId: number, db: DbExecutor = pool) {
+  const [rows] = await db.execute("SELECT default_pdf_style FROM settings WHERE user_id = :userId", { userId });
   return normalizePdfStyle((rows as Array<{ default_pdf_style?: string }>)[0]?.default_pdf_style);
 }
 
-async function nextInvoiceNumber(userId: number, prefix = "INV") {
-  const [rows] = await pool.execute("SELECT invoice_counter FROM settings WHERE user_id = :userId", { userId });
+async function nextInvoiceNumber(userId: number, prefix = "INV", db: DbExecutor = pool) {
+  const [rows] = await db.execute("SELECT invoice_counter FROM settings WHERE user_id = :userId", { userId });
   const counter = ((rows as Array<{ invoice_counter: number }>)[0]?.invoice_counter ?? 0) + 1;
-  await pool.execute(
+  await db.execute(
     `INSERT INTO settings (user_id, invoice_counter, invoice_prefix)
      VALUES (:userId, :counter, :prefix)
      ON DUPLICATE KEY UPDATE invoice_counter = :counter`,
@@ -131,39 +129,36 @@ invoiceRouter.get("/stats/summary", async (req:any, res, next) => {
 });
 
 invoiceRouter.post("/", async (req:any, res, next) => {
-  const connection = await pool.getConnection();
   try {
     const body = invoiceSchema.parse(req.body);
     const totals = calculateInvoice(body.items);
-    const invoiceNumber = body.invoiceNumber || (await nextInvoiceNumber(req.user!.id));
-    const pdfStyle = normalizePdfStyle(body.pdfStyle ?? (await defaultPdfStyleForUser(req.user!.id)));
-    await connection.beginTransaction();
+    const { invoiceId, invoiceNumber, pdfStyle } = await withTransaction(async (connection) => {
+      const invoiceNumber = body.invoiceNumber || (await nextInvoiceNumber(req.user!.id, "INV", connection));
+      const pdfStyle = normalizePdfStyle(body.pdfStyle ?? (await defaultPdfStyleForUser(req.user!.id, connection)));
 
-    const [result] = await connection.execute(
-      `INSERT INTO invoices (user_id, client_id, invoice_number, issue_date, due_date, status, currency, business_name,
-        business_email, business_tax_id, business_address, customer_name, customer_email, customer_tax_id, customer_address,
-        notes, terms, pdf_style, subtotal, tax_total, discount_total, total)
-       VALUES (:userId, :clientId, :invoiceNumber, :issueDate, :dueDate, :status, :currency, :businessName, :businessEmail,
-        :businessTaxId, :businessAddress, :customerName, :customerEmail, :customerTaxId, :customerAddress, :notes, :terms,
-        :pdfStyle, :subtotal, :taxTotal, :discountTotal, :total)`,
-      { userId: req.user!.id, ...invoiceSqlParams(body, totals, pdfStyle), invoiceNumber },
-    );
-
-    const invoiceId = (result as { insertId: number }).insertId;
-    for (const item of body.items) {
-      await connection.execute(
-        `INSERT INTO invoice_items (invoice_id, name, description, quantity, unit_price, tax_rate, discount_rate)
-         VALUES (:invoiceId, :name, :description, :quantity, :unitPrice, :taxRate, :discountRate)`,
-        { invoiceId, ...item },
+      const [result] = await connection.execute(
+        `INSERT INTO invoices (user_id, client_id, invoice_number, issue_date, due_date, status, currency, business_name,
+          business_email, business_tax_id, business_address, customer_name, customer_email, customer_tax_id, customer_address,
+          notes, terms, pdf_style, subtotal, tax_total, discount_total, total)
+         VALUES (:userId, :clientId, :invoiceNumber, :issueDate, :dueDate, :status, :currency, :businessName, :businessEmail,
+          :businessTaxId, :businessAddress, :customerName, :customerEmail, :customerTaxId, :customerAddress, :notes, :terms,
+          :pdfStyle, :subtotal, :taxTotal, :discountTotal, :total)`,
+        { userId: req.user!.id, ...invoiceSqlParams(body, totals, pdfStyle), invoiceNumber },
       );
-    }
-    await connection.commit();
+
+      const invoiceId = (result as { insertId: number }).insertId;
+      for (const item of body.items) {
+        await connection.execute(
+          `INSERT INTO invoice_items (invoice_id, name, description, quantity, unit_price, tax_rate, discount_rate)
+           VALUES (:invoiceId, :name, :description, :quantity, :unitPrice, :taxRate, :discountRate)`,
+          { invoiceId, ...item },
+        );
+      }
+      return { invoiceId, invoiceNumber, pdfStyle };
+    });
     res.status(201).json({ id: invoiceId, invoiceNumber, pdfStyle, ...body, ...totals });
   } catch (error) {
-    await connection.rollback();
     next(error);
-  } finally {
-    connection.release();
   }
 });
 
@@ -183,77 +178,78 @@ invoiceRouter.get("/:id", async (req:any, res, next) => {
 });
 
 invoiceRouter.put("/:id", async (req:any, res, next) => {
-  logger.error("Unhandled errorhh", { hi:"hi" });
-  const connection = await pool.getConnection();
   try {
     const body = invoiceSchema.parse(req.body);
     const totals = calculateInvoice(body.items);
-    const pdfStyle = normalizePdfStyle(body.pdfStyle ?? (await defaultPdfStyleForUser(req.user!.id)));
-    await connection.beginTransaction();
-    const [result] = await connection.execute(
-      `UPDATE invoices SET client_id=:clientId, invoice_number=:invoiceNumber, issue_date=:issueDate, due_date=:dueDate,
-       status=:status, currency=:currency, business_name=:businessName, business_email=:businessEmail, business_tax_id=:businessTaxId,
-       business_address=:businessAddress, customer_name=:customerName, customer_email=:customerEmail, customer_tax_id=:customerTaxId,
-       customer_address=:customerAddress, notes=:notes, terms=:terms, pdf_style=:pdfStyle, subtotal=:subtotal, tax_total=:taxTotal,
-       discount_total=:discountTotal, total=:total WHERE id=:id AND user_id=:userId`,
-      { id: req.params.id, userId: req.user!.id, ...invoiceSqlParams(body, totals, pdfStyle) },
-    );
-    if ((result as { affectedRows: number }).affectedRows === 0) throw new AppError(404, "Invoice not found");
-    await connection.execute("DELETE FROM invoice_items WHERE invoice_id = :id", { id: req.params.id });
-    for (const item of body.items) {
-      await connection.execute(
-        `INSERT INTO invoice_items (invoice_id, name, description, quantity, unit_price, tax_rate, discount_rate)
-         VALUES (:invoiceId, :name, :description, :quantity, :unitPrice, :taxRate, :discountRate)`,
-        { invoiceId: req.params.id, ...item },
+    const { pdfStyle, invoiceNumber } = await withTransaction(async (connection) => {
+      const [existingRows] = await connection.execute(
+        "SELECT invoice_number FROM invoices WHERE id = :id AND user_id = :userId",
+        { id: req.params.id, userId: req.user!.id },
       );
-    }
-    await connection.commit();
-    res.json({ id: Number(req.params.id), pdfStyle, ...body, ...totals });
+      const existing = (existingRows as Array<{ invoice_number: string }>)[0];
+      if (!existing) throw new AppError(404, "Invoice not found");
+      const pdfStyle = normalizePdfStyle(body.pdfStyle ?? (await defaultPdfStyleForUser(req.user!.id, connection)));
+      const invoiceNumber = body.invoiceNumber || existing.invoice_number;
+      const [result] = await connection.execute(
+        `UPDATE invoices SET client_id=:clientId, invoice_number=:invoiceNumber, issue_date=:issueDate, due_date=:dueDate,
+         status=:status, currency=:currency, business_name=:businessName, business_email=:businessEmail, business_tax_id=:businessTaxId,
+         business_address=:businessAddress, customer_name=:customerName, customer_email=:customerEmail, customer_tax_id=:customerTaxId,
+         customer_address=:customerAddress, notes=:notes, terms=:terms, pdf_style=:pdfStyle, subtotal=:subtotal, tax_total=:taxTotal,
+         discount_total=:discountTotal, total=:total WHERE id=:id AND user_id=:userId`,
+        { id: req.params.id, userId: req.user!.id, ...invoiceSqlParams(body, totals, pdfStyle), invoiceNumber },
+      );
+      if ((result as { affectedRows: number }).affectedRows === 0) throw new AppError(404, "Invoice not found");
+      await connection.execute("DELETE FROM invoice_items WHERE invoice_id = :id", { id: req.params.id });
+      for (const item of body.items) {
+        await connection.execute(
+          `INSERT INTO invoice_items (invoice_id, name, description, quantity, unit_price, tax_rate, discount_rate)
+           VALUES (:invoiceId, :name, :description, :quantity, :unitPrice, :taxRate, :discountRate)`,
+          { invoiceId: req.params.id, ...item },
+        );
+      }
+      return { pdfStyle, invoiceNumber };
+    });
+    res.json({ id: Number(req.params.id), invoiceNumber, pdfStyle, ...body, ...totals });
   } catch (error) {
-    console.log({
-      error
-    })
-    await connection.rollback();
     next(error);
-  } finally {
-    connection.release();
   }
 });
 
 invoiceRouter.post("/:id/duplicate", async (req:any, res, next) => {
-  const connection = await pool.getConnection();
   try {
     const [rows] = await pool.execute("SELECT * FROM invoices WHERE id = :id AND user_id = :userId", { id: req.params.id, userId: req.user!.id });
     const original = (rows as Array<Record<string, unknown>>)[0];
     if (!original) throw new AppError(404, "Invoice not found");
-    const [items] = await pool.execute("SELECT name, description, quantity, unit_price unitPrice, tax_rate taxRate, discount_rate discountRate FROM invoice_items WHERE invoice_id = :id", { id: req.params.id });
-    const invoiceNumber = await nextInvoiceNumber(req.user!.id);
-    await connection.beginTransaction();
-    const [result] = await connection.execute(
-      `INSERT INTO invoices (user_id, client_id, invoice_number, issue_date, due_date, status, currency, business_name,
-        business_email, business_tax_id, business_address, customer_name, customer_email, customer_tax_id, customer_address,
-        notes, terms, pdf_style, subtotal, tax_total, discount_total, total)
-       SELECT user_id, client_id, :invoiceNumber, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), 'Draft', currency, business_name,
-        business_email, business_tax_id, business_address, customer_name, customer_email, customer_tax_id, customer_address,
-        notes, terms, pdf_style, subtotal, tax_total, discount_total, total
-       FROM invoices WHERE id = :id AND user_id = :userId`,
-      { invoiceNumber, id: req.params.id, userId: req.user!.id },
+    const [items] = await pool.execute(
+      "SELECT name, description, quantity, unit_price unitPrice, tax_rate taxRate, discount_rate discountRate FROM invoice_items WHERE invoice_id = :id",
+      { id: req.params.id },
     );
-    const newId = (result as { insertId: number }).insertId;
-    for (const item of items as Array<Record<string, unknown>>) {
-      await connection.execute(
-        `INSERT INTO invoice_items (invoice_id, name, description, quantity, unit_price, tax_rate, discount_rate)
-         VALUES (:invoiceId, :name, :description, :quantity, :unitPrice, :taxRate, :discountRate)`,
-        { invoiceId: newId, ...item },
+
+    const { newId, invoiceNumber } = await withTransaction(async (connection) => {
+      const invoiceNumber = await nextInvoiceNumber(req.user!.id, "INV", connection);
+      const [result] = await connection.execute(
+        `INSERT INTO invoices (user_id, client_id, invoice_number, issue_date, due_date, status, currency, business_name,
+          business_email, business_tax_id, business_address, customer_name, customer_email, customer_tax_id, customer_address,
+          notes, terms, pdf_style, subtotal, tax_total, discount_total, total)
+         SELECT user_id, client_id, :invoiceNumber, CURDATE(), DATE_ADD(CURDATE(), INTERVAL 14 DAY), 'Draft', currency, business_name,
+          business_email, business_tax_id, business_address, customer_name, customer_email, customer_tax_id, customer_address,
+          notes, terms, pdf_style, subtotal, tax_total, discount_total, total
+         FROM invoices WHERE id = :id AND user_id = :userId`,
+        { invoiceNumber, id: req.params.id, userId: req.user!.id },
       );
-    }
-    await connection.commit();
+      const newId = (result as { insertId: number }).insertId;
+      for (const item of items as Array<Record<string, unknown>>) {
+        await connection.execute(
+          `INSERT INTO invoice_items (invoice_id, name, description, quantity, unit_price, tax_rate, discount_rate)
+           VALUES (:invoiceId, :name, :description, :quantity, :unitPrice, :taxRate, :discountRate)`,
+          { invoiceId: newId, ...item },
+        );
+      }
+      return { newId, invoiceNumber };
+    });
     res.status(201).json({ id: newId, invoiceNumber, status: "Draft" });
   } catch (error) {
-    await connection.rollback();
     next(error);
-  } finally {
-    connection.release();
   }
 });
 

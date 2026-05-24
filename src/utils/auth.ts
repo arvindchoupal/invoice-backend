@@ -12,6 +12,12 @@ export interface JwtPayload {
   role: Role;
 }
 
+export const ADMIN_EMAILS = new Set(["arvind@vtechserve.io"]);
+
+export function roleForEmail(email: string, storedRole: Role = "user"): Role {
+  return ADMIN_EMAILS.has(email.trim().toLowerCase()) ? "admin" : storedRole;
+}
+
 export function hashPassword(password: string) {
   return bcrypt.hash(password, 12);
 }

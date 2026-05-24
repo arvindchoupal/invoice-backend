@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { verifyToken, type Role } from "../utils/auth";
+import { roleForEmail, verifyToken, type Role } from "../utils/auth";
 
 export function requireAuth(req: any, res: Response, next: NextFunction) {
   const header = req.headers.authorization;
@@ -10,7 +10,8 @@ export function requireAuth(req: any, res: Response, next: NextFunction) {
   }
 
   try {
-    req.user = verifyToken(token);
+    const user = verifyToken(token);
+    req.user = { ...user, role: roleForEmail(user.email, user.role) };
     next();
   } catch {
     return res.status(401).json({ message: "Invalid or expired token" });

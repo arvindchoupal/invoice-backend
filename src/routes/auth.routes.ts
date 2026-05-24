@@ -2,7 +2,7 @@ import { Router } from "express";
 import { pool } from "../config/db";
 import { AppError } from "../middleware/error";
 import { requireAuth } from "../middleware/auth";
-import { comparePassword, hashPassword, randomToken, signToken } from "../utils/auth";
+import { comparePassword, hashPassword, randomToken, roleForEmail, signToken } from "../utils/auth";
 import { forgotPasswordSchema, loginSchema, resetPasswordSchema, signupSchema } from "../utils/validators";
 import { sendPasswordResetEmail } from "../services/email.service";
 
@@ -12,13 +12,14 @@ authRouter.post("/signup", async (req, res, next) => {
   try {
     const body = signupSchema.parse(req.body);
     const passwordHash = await hashPassword(body.password);
+    const role = roleForEmail(body.email);
     const [result] = await pool.execute(
-      "INSERT INTO users (name, email, password_hash) VALUES (:name, :email, :passwordHash)",
-      { ...body, passwordHash },
+      "INSERT INTO users (name, email, password_hash, role) VALUES (:name, :email, :passwordHash, :role)",
+      { ...body, passwordHash, role },
     );
     const id = Number((result as { insertId: number }).insertId);
-    const token = signToken({ id, email: body.email, role: "user" });
-    res.status(201).json({ token, user: { id, name: body.name, email: body.email, role: "user" } });
+    const token = signToken({ id, email: body.email, role });
+    res.status(201).json({ token, user: { id, name: body.name, email: body.email, role } });
   } catch (error: unknown) {
     if ((error as { code?: string }).code === "ER_DUP_ENTRY") return next(new AppError(409, "Email already exists"));
     next(error);
@@ -33,8 +34,10 @@ authRouter.post("/login", async (req, res, next) => {
     });
     const user = (rows as Array<{ id: number; name: string; email: string; role: "admin" | "user"; password_hash: string }>)[0];
     if (!user || !(await comparePassword(body.password, user.password_hash))) throw new AppError(401, "Invalid credentials");
-    const token = signToken({ id: user.id, email: user.email, role: user.role });
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+    const role = roleForEmail(user.email, user.role);
+    if (role !== user.role) await pool.execute("UPDATE users SET role = :role WHERE id = :id", { role, id: user.id });
+    const token = signToken({ id: user.id, email: user.email, role });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role } });
   } catch (error) {
     next(error);
   }
@@ -71,7 +74,11 @@ authRouter.post("/reset-password", async (req, res, next) => {
 authRouter.get("/me", requireAuth, async (req:any, res, next) => {
   try {
     const [rows] = await pool.execute("SELECT id, name, email, role, avatar_url FROM users WHERE id = :id", { id: req.user!.id });
-    res.json((rows as unknown[])[0]);
+    const user = (rows as Array<{ id: number; name: string; email: string; role: "admin" | "user"; avatar_url?: string }>)[0];
+    if (!user) throw new AppError(404, "User not found");
+    const role = roleForEmail(user.email, user.role);
+    if (role !== user.role) await pool.execute("UPDATE users SET role = :role WHERE id = :id", { role, id: user.id });
+    res.json({ ...user, role });
   } catch (error) {
     next(error);
   }
@@ -80,8 +87,9 @@ authRouter.get("/me", requireAuth, async (req:any, res, next) => {
 authRouter.put("/profile", requireAuth, async (req:any, res, next) => {
   try {
     const { name, email } = signupSchema.pick({ name: true, email: true }).parse(req.body);
-    await pool.execute("UPDATE users SET name = :name, email = :email WHERE id = :id", { name, email, id: req.user!.id });
-    res.json({ id: req.user!.id, name, email, role: req.user!.role });
+    const role = roleForEmail(email, req.user!.role);
+    await pool.execute("UPDATE users SET name = :name, email = :email, role = :role WHERE id = :id", { name, email, role, id: req.user!.id });
+    res.json({ id: req.user!.id, name, email, role });
   } catch (error) {
     next(error);
   }

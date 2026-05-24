@@ -66,6 +66,20 @@ function logoPath(settings?: Record<string, unknown>) {
   return fs.existsSync(resolved) ? resolved : "";
 }
 
+function hasLogo(settings?: Record<string, unknown>) {
+  return Boolean(logoPath(settings));
+}
+
+function formatDate(value: unknown) {
+  if (!value) return "";
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  const raw = String(value);
+  const isoMatch = raw.match(/^\d{4}-\d{2}-\d{2}/);
+  if (isoMatch) return isoMatch[0];
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? raw.slice(0, 10) : parsed.toISOString().slice(0, 10);
+}
+
 export function normalizePdfStyle(style: unknown): PdfStyleId {
   return PDF_STYLES.includes(style as PdfStyleId) ? (style as PdfStyleId) : "classic";
 }
@@ -101,8 +115,8 @@ function drawLogo(doc: PDFKit.PDFDocument, settings: Record<string, unknown> | u
 }
 
 function drawHeader(doc: PDFKit.PDFDocument, invoice: Record<string, unknown>, theme: PdfTheme, settings?: Record<string, unknown>) {
-  const hasLogo = drawLogo(doc, settings, 48, 36, 42);
-  const textX = hasLogo ? 100 : 48;
+  const logoAvailable = hasLogo(settings);
+  const textX = logoAvailable ? 100 : 48;
   if (theme.header === "solid") {
     doc.rect(0, 0, 595, 132).fill(theme.accentDark);
     drawLogo(doc, settings, 48, 38, 42);
@@ -118,7 +132,7 @@ function drawHeader(doc: PDFKit.PDFDocument, invoice: Record<string, unknown>, t
     doc.rect(0, 0, 250, 132).fill(theme.accentDark);
     doc.rect(250, 0, 345, 132).fill(theme.soft);
     drawLogo(doc, settings, 48, 38, 38);
-    doc.fillColor("#ffffff").fontSize(22).text(String(invoice.business_name ?? "InvoiceWala"), hasLogo ? 94 : 48, 40, { width: hasLogo ? 130 : 170 });
+    doc.fillColor("#ffffff").fontSize(22).text(String(invoice.business_name ?? "InvoiceWala"), logoAvailable ? 94 : 48, 40, { width: logoAvailable ? 130 : 170 });
     doc.fillColor(theme.text).fontSize(30).text("INVOICE", 365, 42);
     doc.fontSize(11).fillColor(theme.muted).text(String(invoice.invoice_number), 368, 78);
     return;
@@ -127,7 +141,7 @@ function drawHeader(doc: PDFKit.PDFDocument, invoice: Record<string, unknown>, t
   if (theme.header === "side") {
     doc.rect(0, 0, 24, 842).fill(theme.accent);
     drawLogo(doc, settings, 52, 38, 38);
-    doc.fillColor(theme.text).fontSize(24).text(String(invoice.business_name ?? "InvoiceWala"), hasLogo ? 98 : 52, 42);
+    doc.fillColor(theme.text).fontSize(24).text(String(invoice.business_name ?? "InvoiceWala"), logoAvailable ? 98 : 52, 42);
     doc.fillColor(theme.accentDark).fontSize(32).text("INVOICE", 390, 40);
     doc.fontSize(10).fillColor(theme.muted).text(String(invoice.invoice_number), 394, 78);
     return;
@@ -136,7 +150,7 @@ function drawHeader(doc: PDFKit.PDFDocument, invoice: Record<string, unknown>, t
   if (theme.header === "bar") {
     doc.rect(48, 34, 500, 10).fill(theme.accent);
     drawLogo(doc, settings, 48, 58, 38);
-    doc.fillColor(theme.text).fontSize(24).text(String(invoice.business_name ?? "InvoiceWala"), hasLogo ? 94 : 48, 64);
+    doc.fillColor(theme.text).fontSize(24).text(String(invoice.business_name ?? "InvoiceWala"), logoAvailable ? 94 : 48, 64);
     doc.fontSize(34).fillColor(theme.accentDark).text("INVOICE", 374, 58);
     doc.fontSize(10).fillColor(theme.muted).text(String(invoice.invoice_number), 380, 94);
     return;
@@ -157,8 +171,8 @@ function drawParties(doc: PDFKit.PDFDocument, invoice: Record<string, unknown>, 
   doc.text(String(invoice.customer_address ?? ""), 48, y + 58, { width: 220 });
 
   doc.roundedRect(336, y - 8, 212, 92, 6).fill(theme.soft);
-  doc.fillColor(theme.text).fontSize(10).text(`Issue Date: ${String(invoice.issue_date).slice(0, 10)}`, 356, y + 8);
-  doc.text(`Due Date: ${String(invoice.due_date).slice(0, 10)}`, 356, y + 30);
+  doc.fillColor(theme.text).fontSize(10).text(`Issue Date: ${formatDate(invoice.issue_date)}`, 356, y + 8);
+  doc.text(`Due Date: ${formatDate(invoice.due_date)}`, 356, y + 30);
   doc.text(`Status: ${String(invoice.status)}`, 356, y + 52);
 }
 
@@ -168,7 +182,7 @@ function drawTemplateStructure(doc: PDFKit.PDFDocument, invoice: Record<string, 
     doc.fillColor(theme.accentDark).fontSize(10).text("PAYMENT TERMS", 62, 264);
     doc.fillColor(theme.text).fontSize(10).text(String(invoice.terms ?? "Payment is due by the invoice due date."), 170, 264, { width: 250 });
     doc.fillColor(theme.accent).roundedRect(450, 260, 76, 18, 9).fill();
-    doc.fillColor("#ffffff").fontSize(8).text(`DUE ${String(invoice.due_date).slice(0, 10)}`, 462, 265);
+    doc.fillColor("#ffffff").fontSize(8).text(`DUE ${formatDate(invoice.due_date)}`, 462, 265);
     return 324;
   }
 

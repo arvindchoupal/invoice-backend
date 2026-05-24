@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { pool } from "../config/db";
+import { withTransaction } from "../config/db";
 import { requireAuth } from "../middleware/auth";
 import { upload } from "../middleware/upload";
 import { buildExtractionConfidence, extractTextFromFile, inferInvoiceFromText } from "../services/ai.service";
@@ -30,10 +30,9 @@ aiRouter.post("/text-to-invoice", async (req, res, next) => {
 });
 
 aiRouter.post("/save-extraction", async (req:any, res, next) => {
-  const connection = await pool.getConnection();
   try {
     const { invoice, createClient = true, createExpense = false, createPurchase = false } = req.body;
-    await connection.beginTransaction();
+    const payload = await withTransaction(async (connection) => {
     let clientId: number | null = null;
 
     if (createClient && invoice.customerName) {
@@ -127,12 +126,10 @@ aiRouter.post("/save-extraction", async (req:any, res, next) => {
       purchaseId = (purchaseResult as { insertId: number }).insertId;
     }
 
-    await connection.commit();
-    res.status(201).json({ clientId, invoiceId, expenseId, purchaseId });
+    return { clientId, invoiceId, expenseId, purchaseId };
+    });
+    res.status(201).json(payload);
   } catch (error) {
-    await connection.rollback();
     next(error);
-  } finally {
-    connection.release();
   }
 });

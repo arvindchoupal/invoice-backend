@@ -10,6 +10,7 @@ const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const helmet_1 = __importDefault(require("helmet"));
 const morgan_1 = __importDefault(require("morgan"));
 const path_1 = __importDefault(require("path"));
+const db_1 = require("./config/db");
 const env_1 = require("./config/env");
 const admin_routes_1 = require("./routes/admin.routes");
 const ai_routes_1 = require("./routes/ai.routes");
@@ -36,7 +37,15 @@ exports.app.use("/uploads", express_1.default.static(path_1.default.resolve(env_
 exports.app.get("/", (_, res) => {
     res.send("API runnings");
 });
-exports.app.get("/health", (_req, res) => res.json({ ok: true, service: "invoice-backend" }));
+exports.app.get("/health", async (_req, res) => {
+    try {
+        await (0, db_1.pingDatabase)();
+        res.json({ ok: true, service: "invoice-backend", db: "up" });
+    }
+    catch {
+        res.status(503).json({ ok: false, service: "invoice-backend", db: "down" });
+    }
+});
 exports.app.use("/api/auth", auth_routes_1.authRouter);
 exports.app.use("/api/bookkeeping", bookkeeping_routes_1.bookkeepingRouter);
 exports.app.use("/api/clients", client_routes_1.clientRouter);

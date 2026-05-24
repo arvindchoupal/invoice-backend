@@ -48,3 +48,16 @@ settingsRouter.post("/logo", upload.single("logo"), async (req:any, res, next) =
     next(error);
   }
 });
+
+settingsRouter.delete("/logo", async (req:any, res, next) => {
+  try {
+    await pool.execute(
+      `INSERT INTO settings (user_id, logo_url) VALUES (:userId, NULL)
+       ON DUPLICATE KEY UPDATE logo_url=NULL`,
+      { userId: req.user!.id },
+    );
+    res.json({ logoUrl: "" });
+  } catch (error) {
+    next(error);
+  }
+});

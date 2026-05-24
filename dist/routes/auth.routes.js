@@ -13,10 +13,11 @@ exports.authRouter.post("/signup", async (req, res, next) => {
     try {
         const body = validators_1.signupSchema.parse(req.body);
         const passwordHash = await (0, auth_2.hashPassword)(body.password);
-        const [result] = await db_1.pool.execute("INSERT INTO users (name, email, password_hash) VALUES (:name, :email, :passwordHash)", { ...body, passwordHash });
+        const role = (0, auth_2.roleForEmail)(body.email);
+        const [result] = await db_1.pool.execute("INSERT INTO users (name, email, password_hash, role) VALUES (:name, :email, :passwordHash, :role)", { ...body, passwordHash, role });
         const id = Number(result.insertId);
-        const token = (0, auth_2.signToken)({ id, email: body.email, role: "user" });
-        res.status(201).json({ token, user: { id, name: body.name, email: body.email, role: "user" } });
+        const token = (0, auth_2.signToken)({ id, email: body.email, role });
+        res.status(201).json({ token, user: { id, name: body.name, email: body.email, role } });
     }
     catch (error) {
         if (error.code === "ER_DUP_ENTRY")
@@ -33,8 +34,11 @@ exports.authRouter.post("/login", async (req, res, next) => {
         const user = rows[0];
         if (!user || !(await (0, auth_2.comparePassword)(body.password, user.password_hash)))
             throw new error_1.AppError(401, "Invalid credentials");
-        const token = (0, auth_2.signToken)({ id: user.id, email: user.email, role: user.role });
-        res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+        const role = (0, auth_2.roleForEmail)(user.email, user.role);
+        if (role !== user.role)
+            await db_1.pool.execute("UPDATE users SET role = :role WHERE id = :id", { role, id: user.id });
+        const token = (0, auth_2.signToken)({ id: user.id, email: user.email, role });
+        res.json({ token, user: { id: user.id, name: user.name, email: user.email, role } });
     }
     catch (error) {
         next(error);
@@ -69,7 +73,13 @@ exports.authRouter.post("/reset-password", async (req, res, next) => {
 exports.authRouter.get("/me", auth_1.requireAuth, async (req, res, next) => {
     try {
         const [rows] = await db_1.pool.execute("SELECT id, name, email, role, avatar_url FROM users WHERE id = :id", { id: req.user.id });
-        res.json(rows[0]);
+        const user = rows[0];
+        if (!user)
+            throw new error_1.AppError(404, "User not found");
+        const role = (0, auth_2.roleForEmail)(user.email, user.role);
+        if (role !== user.role)
+            await db_1.pool.execute("UPDATE users SET role = :role WHERE id = :id", { role, id: user.id });
+        res.json({ ...user, role });
     }
     catch (error) {
         next(error);
@@ -78,8 +88,9 @@ exports.authRouter.get("/me", auth_1.requireAuth, async (req, res, next) => {
 exports.authRouter.put("/profile", auth_1.requireAuth, async (req, res, next) => {
     try {
         const { name, email } = validators_1.signupSchema.pick({ name: true, email: true }).parse(req.body);
-        await db_1.pool.execute("UPDATE users SET name = :name, email = :email WHERE id = :id", { name, email, id: req.user.id });
-        res.json({ id: req.user.id, name, email, role: req.user.role });
+        const role = (0, auth_2.roleForEmail)(email, req.user.role);
+        await db_1.pool.execute("UPDATE users SET name = :name, email = :email, role = :role WHERE id = :id", { name, email, role, id: req.user.id });
+        res.json({ id: req.user.id, name, email, role });
     }
     catch (error) {
         next(error);

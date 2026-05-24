@@ -6,7 +6,9 @@ export const pricingRouter = Router();
 
 pricingRouter.get("/plans", async (_req, res, next) => {
   try {
-    const [rows] = await pool.execute("SELECT * FROM subscription_plans ORDER BY FIELD(name, 'free', 'pro', 'business')");
+    const [rows] = await pool.execute(
+      "SELECT * FROM subscription_plans WHERE name <> 'starter' ORDER BY FIELD(name, 'free', 'pro', 'business')",
+    );
     res.json(rows);
   } catch (error) {
     next(error);
