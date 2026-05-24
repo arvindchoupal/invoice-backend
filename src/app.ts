@@ -22,7 +22,7 @@ import { settingsRouter } from "./routes/settings.routes";
 import { errorHandler, notFound } from "./middleware/error";
 
 export const app = express();
-
+app.set("trust proxy", 1); // <-- add this
 app.use(helmet());
 app.use(
   cors()

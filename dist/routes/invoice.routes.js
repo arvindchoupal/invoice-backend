@@ -56,6 +56,7 @@ async function nextInvoiceNumber(userId, prefix = "INV", db = db_1.pool) {
      ON DUPLICATE KEY UPDATE invoice_counter = :counter`, { userId, counter, prefix });
     return (0, invoice_1.makeInvoiceNumber)(prefix, counter);
 }
+//tewt
 exports.invoiceRouter.get("/", async (req, res, next) => {
     try {
         const page = Math.max(Number(req.query.page ?? 1), 1);
