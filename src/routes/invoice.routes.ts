@@ -63,6 +63,45 @@ async function nextInvoiceNumber(userId: number, prefix = "INV", db: DbExecutor 
   );
   return makeInvoiceNumber(prefix, counter);
 }
+
+async function clientIdForInvoice(userId: number, body: InvoiceBody, db: DbExecutor) {
+  if (body.clientId) return body.clientId;
+
+  const customerName = body.customerName.trim();
+  const customerEmail = body.customerEmail?.trim() || null;
+  const customerTaxId = body.customerTaxId?.trim() || null;
+  const customerAddress = body.customerAddress?.trim() || null;
+  if (!customerName) return null;
+
+  const [existingRows] = await db.execute(
+    `SELECT id FROM clients
+     WHERE user_id = :userId
+       AND (
+        (:email IS NOT NULL AND email = :email)
+        OR (:taxId IS NOT NULL AND tax_id = :taxId)
+        OR (LOWER(name) = LOWER(:name) AND COALESCE(email, '') = COALESCE(:email, ''))
+       )
+     ORDER BY id DESC
+     LIMIT 1`,
+    { userId, email: customerEmail, taxId: customerTaxId, name: customerName },
+  );
+  const existing = (existingRows as Array<{ id: number }>)[0];
+  if (existing?.id) return existing.id;
+
+  const [result] = await db.execute(
+    `INSERT INTO clients (user_id, name, email, tax_id, billing_address, notes)
+     VALUES (:userId, :name, :email, :taxId, :billingAddress, :notes)`,
+    {
+      userId,
+      name: customerName,
+      email: customerEmail,
+      taxId: customerTaxId,
+      billingAddress: customerAddress,
+      notes: "Auto-created from invoice",
+    },
+  );
+  return (result as { insertId: number }).insertId;
+}
 //tewt
 invoiceRouter.get("/", async (req:any, res, next) => {
   try {
@@ -147,6 +186,7 @@ invoiceRouter.post("/", async (req:any, res, next) => {
     const { invoiceId, invoiceNumber, pdfStyle } = await withTransaction(async (connection) => {
       const invoiceNumber = body.invoiceNumber || (await nextInvoiceNumber(req.user!.id, "INV", connection));
       const pdfStyle = normalizePdfStyle(body.pdfStyle ?? (await defaultPdfStyleForUser(req.user!.id, connection)));
+      const clientId = await clientIdForInvoice(req.user!.id, body, connection);
 
       const [result] = await connection.execute(
         `INSERT INTO invoices (user_id, client_id, invoice_number, issue_date, due_date, status, currency, business_name,
@@ -155,7 +195,7 @@ invoiceRouter.post("/", async (req:any, res, next) => {
          VALUES (:userId, :clientId, :invoiceNumber, :issueDate, :dueDate, :status, :currency, :businessName, :businessEmail,
           :businessTaxId, :businessAddress, :customerName, :customerEmail, :customerTaxId, :customerAddress, :notes, :terms,
           :pdfStyle, :subtotal, :taxTotal, :discountTotal, :total)`,
-        { userId: req.user!.id, ...invoiceSqlParams(body, totals, pdfStyle), invoiceNumber },
+        { userId: req.user!.id, ...invoiceSqlParams({ ...body, clientId }, totals, pdfStyle), invoiceNumber },
       );
 
       const invoiceId = (result as { insertId: number }).insertId;
@@ -202,13 +242,14 @@ invoiceRouter.put("/:id", async (req:any, res, next) => {
       if (!existing) throw new AppError(404, "Invoice not found");
       const pdfStyle = normalizePdfStyle(body.pdfStyle ?? (await defaultPdfStyleForUser(req.user!.id, connection)));
       const invoiceNumber = body.invoiceNumber || existing.invoice_number;
+      const clientId = await clientIdForInvoice(req.user!.id, body, connection);
       const [result] = await connection.execute(
         `UPDATE invoices SET client_id=:clientId, invoice_number=:invoiceNumber, issue_date=:issueDate, due_date=:dueDate,
          status=:status, currency=:currency, business_name=:businessName, business_email=:businessEmail, business_tax_id=:businessTaxId,
          business_address=:businessAddress, customer_name=:customerName, customer_email=:customerEmail, customer_tax_id=:customerTaxId,
          customer_address=:customerAddress, notes=:notes, terms=:terms, pdf_style=:pdfStyle, subtotal=:subtotal, tax_total=:taxTotal,
          discount_total=:discountTotal, total=:total WHERE id=:id AND user_id=:userId`,
-        { id: req.params.id, userId: req.user!.id, ...invoiceSqlParams(body, totals, pdfStyle), invoiceNumber },
+        { id: req.params.id, userId: req.user!.id, ...invoiceSqlParams({ ...body, clientId }, totals, pdfStyle), invoiceNumber },
       );
       if ((result as { affectedRows: number }).affectedRows === 0) throw new AppError(404, "Invoice not found");
       await connection.execute("DELETE FROM invoice_items WHERE invoice_id = :id", { id: req.params.id });
