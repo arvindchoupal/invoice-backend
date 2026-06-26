@@ -95,3 +95,6 @@
 {"error":{},"level":"error","message":"Unhandled error","timestamp":"2026-05-24T16:09:35.709Z"}
 {"error":{},"level":"error","message":"Unhandled error","timestamp":"2026-05-24T16:09:36.994Z"}
 {"error":{},"level":"error","message":"Unhandled error","timestamp":"2026-05-24T16:09:59.125Z"}
+{"error":{"code":"ER_ACCESS_DENIED_ERROR","errno":1045,"sqlMessage":"Access denied for user 'root'@'localhost' (using password: YES)","sqlState":"28000"},"level":"error","message":"Unhandled error","timestamp":"2026-05-28T14:24:06.229Z"}
+{"error":{"code":"ER_ACCESS_DENIED_ERROR","errno":1045,"sqlMessage":"Access denied for user 'root'@'localhost' (using password: YES)","sqlState":"28000"},"level":"error","message":"Unhandled error","timestamp":"2026-05-28T14:24:06.316Z"}
+{"error":{"code":"EAUTH","command":"AUTH PLAIN","response":"535-5.7.8 Username and Password not accepted. For more information, go to\n535 5.7.8  https://support.google.com/mail/?p=BadCredentials d2e1a72fcca58-845b962bf55sm2140034b3a.13 - gsmtp","responseCode":535},"level":"error","message":"Unhandled error","timestamp":"2026-06-26T02:51:31.619Z"}

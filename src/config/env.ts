@@ -25,6 +25,9 @@ export const env = {
     pass: process.env.SMTP_PASS,
     from: process.env.EMAIL_FROM ?? "InvoiceWala <billing@invoicewala.shop>",
   },
+  leads: {
+    to: process.env.LEAD_EMAIL_TO ?? process.env.SMTP_USER,
+  },
   stripeSecretKey: process.env.STRIPE_SECRET_KEY,
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
   razorpayKeyId: process.env.RAZORPAY_KEY_ID,
