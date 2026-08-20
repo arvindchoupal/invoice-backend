@@ -9,9 +9,10 @@ const config = {
   user: process.env.DB_USER || "root",
   password: process.env.DB_PASSWORD || "",
   database: process.env.DB_NAME || "invoice_maker",
-  adminUser: process.env.DB_ADMIN_USER || process.env.DB_USER || "root",
-  adminPassword: process.env.DB_ADMIN_PASSWORD ?? process.env.DB_PASSWORD ?? "",
+  adminUser:  process.env.DB_USER || "root",
+  adminPassword:  process.env.DB_PASSWORD || "",
 };
+
 
 async function runSqlFile(connection, filePath) {
   const sql = await fs.readFile(filePath, "utf8");
