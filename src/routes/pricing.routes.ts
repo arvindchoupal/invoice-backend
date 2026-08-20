@@ -4,6 +4,26 @@ import { requireAuth } from "../middleware/auth";
 
 export const pricingRouter = Router();
 
+pricingRouter.get("/launch-offer", async (_req, res, next) => {
+  try {
+    const [rows] = await pool.execute(
+      "SELECT claim_limit, claimed_count, active FROM launch_offers WHERE offer_key='founding-1000' LIMIT 1",
+    );
+    const offer = (rows as Array<{ claim_limit: number; claimed_count: number; active: number }>)[0];
+    const limit = offer?.claim_limit ?? 1000;
+    const claimed = Math.min(offer?.claimed_count ?? 0, limit);
+    res.json({
+      key: "founding-1000",
+      limit,
+      claimed,
+      remaining: Math.max(limit - claimed, 0),
+      active: Boolean(offer?.active) && claimed < limit,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 pricingRouter.get("/plans", async (_req, res, next) => {
   try {
     const [rows] = await pool.execute(

@@ -33,4 +33,25 @@ export const env = {
   razorpayKeyId: process.env.RAZORPAY_KEY_ID,
   razorpayKeySecret: process.env.RAZORPAY_KEY_SECRET,
   uploadDir: process.env.UPLOAD_DIR ?? "uploads",
+  retailx: {
+    apiBaseUrl: process.env.RETAILX_API_BASE_URL ?? "https://retailxapp.com",
+  },
+  einvoice: {
+    environment: process.env.EINVOICE_ENVIRONMENT ?? "sandbox",
+    sandboxBaseUrl:
+      process.env.EINVOICE_SANDBOX_BASE_URL ??
+      "https://testapi.mygstcafe.com/eicore/v1.03",
+    productionBaseUrl:
+      process.env.EINVOICE_PRODUCTION_BASE_URL ??
+      "https://api.mygstcafe.com/eicore/v1.03",
+    gstin: process.env.EINVOICE_GSTIN,
+    username: process.env.EINVOICE_USERNAME,
+    password: process.env.EINVOICE_PASSWORD,
+    customerId: process.env.EINVOICE_CUSTOMER_ID,
+    apiId: process.env.EINVOICE_API_ID,
+    apiSecret: process.env.EINVOICE_API_SECRET,
+    source: process.env.EINVOICE_SOURCE ?? "API",
+    customerName: process.env.EINVOICE_CUSTOMER_NAME,
+    branch: process.env.EINVOICE_BRANCH,
+  },
 };

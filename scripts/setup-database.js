@@ -21,7 +21,15 @@ async function runSqlFile(connection, filePath) {
     .filter(Boolean);
 
   for (const statement of statements) {
-    await connection.query(statement);
+    try {
+      await connection.query(statement);
+    } catch (error) {
+      if (error.code === "ER_DUP_FIELDNAME") {
+        console.warn(`Skipping duplicate column in ${path.basename(filePath)}.`);
+        continue;
+      }
+      throw error;
+    }
   }
 }
 

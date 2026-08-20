@@ -29,7 +29,11 @@ function errorHandler(error, _req, res, _next) {
         return res.status(422).json({ message, issues });
     }
     if (error instanceof AppError) {
-        return res.status(error.statusCode).json({ message: error.message });
+        const provider = error.providerResponse;
+        return res.status(error.statusCode).json({
+            message: error.message,
+            ...(provider ? { provider } : {}),
+        });
     }
     if (typeof error === "object" && error && "code" in error) {
         const dbError = error;

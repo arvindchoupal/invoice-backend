@@ -5,7 +5,6 @@ const express_1 = require("express");
 const db_1 = require("../config/db");
 const auth_1 = require("../middleware/auth");
 const error_1 = require("../middleware/error");
-const payment_service_1 = require("../services/payment.service");
 exports.paymentRouter = (0, express_1.Router)();
 exports.paymentRouter.use(auth_1.requireAuth);
 async function findInvoice(id, userId) {
@@ -15,21 +14,11 @@ async function findInvoice(id, userId) {
         throw new error_1.AppError(404, "Invoice not found");
     return invoice;
 }
-exports.paymentRouter.post("/:id/stripe", async (req, res, next) => {
-    try {
-        res.json(await (0, payment_service_1.createStripeCheckout)(await findInvoice(req.params.id, req.user.id)));
-    }
-    catch (error) {
-        next(error);
-    }
+exports.paymentRouter.post("/:id/stripe", (_req, _res, next) => {
+    next(new error_1.AppError(503, "Online payment collection is unavailable during the free founding launch"));
 });
-exports.paymentRouter.post("/:id/razorpay", async (req, res, next) => {
-    try {
-        res.json(await (0, payment_service_1.createRazorpayOrder)(await findInvoice(req.params.id, req.user.id)));
-    }
-    catch (error) {
-        next(error);
-    }
+exports.paymentRouter.post("/:id/razorpay", (_req, _res, next) => {
+    next(new error_1.AppError(503, "Online payment collection is unavailable during the free founding launch"));
 });
 exports.paymentRouter.get("/", async (req, res, next) => {
     try {

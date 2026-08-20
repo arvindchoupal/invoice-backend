@@ -2,7 +2,6 @@ import { Router } from "express";
 import { pool } from "../config/db";
 import { requireAuth } from "../middleware/auth";
 import { AppError } from "../middleware/error";
-import { createRazorpayOrder, createStripeCheckout } from "../services/payment.service";
 
 export const paymentRouter = Router();
 paymentRouter.use(requireAuth);
@@ -14,20 +13,12 @@ async function findInvoice(id: string, userId: number) {
   return invoice;
 }
 
-paymentRouter.post("/:id/stripe", async (req:any, res, next) => {
-  try {
-    res.json(await createStripeCheckout(await findInvoice(req.params.id, req.user!.id)));
-  } catch (error) {
-    next(error);
-  }
+paymentRouter.post("/:id/stripe", (_req, _res, next) => {
+  next(new AppError(503, "Online payment collection is unavailable during the free founding launch"));
 });
 
-paymentRouter.post("/:id/razorpay", async (req:any, res, next) => {
-  try {
-    res.json(await createRazorpayOrder(await findInvoice(req.params.id, req.user!.id)));
-  } catch (error) {
-    next(error);
-  }
+paymentRouter.post("/:id/razorpay", (_req, _res, next) => {
+  next(new AppError(503, "Online payment collection is unavailable during the free founding launch"));
 });
 
 paymentRouter.get("/", async (req:any, res, next) => {

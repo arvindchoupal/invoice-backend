@@ -10,6 +10,7 @@ import { adminRouter } from "./routes/admin.routes";
 import { aiRouter } from "./routes/ai.routes";
 import { authRouter } from "./routes/auth.routes";
 import { bookkeepingRouter } from "./routes/bookkeeping.routes";
+import { buildFastRouter } from "./routes/buildfast.routes";
 import { clientRouter } from "./routes/client.routes";
 import { documentRouter } from "./routes/document.routes";
 import { invoiceRouter } from "./routes/invoice.routes";
@@ -21,6 +22,8 @@ import { recurringRouter } from "./routes/recurring.routes";
 import { reportRouter } from "./routes/report.routes";
 import { settingsRouter } from "./routes/settings.routes";
 import { riseGuruRouter } from "./routes/riseguru.routes";
+import { shopRouter } from "./routes/shop.routes";
+import { retailxEinvoiceRouter } from "./routes/retailx-einvoice.routes";
 import { errorHandler, notFound } from "./middleware/error";
 
 export const app = express();
@@ -48,6 +51,7 @@ app.get("/health", async (_req, res) => {
 });
 app.use("/api/auth", authRouter);
 app.use("/api/bookkeeping", bookkeepingRouter);
+app.use("/api/buildfast", buildFastRouter);
 app.use("/api/clients", clientRouter);
 app.use("/api/documents", documentRouter);
 app.use("/api/invoices", invoiceRouter);
@@ -59,6 +63,8 @@ app.use("/api/recurring", recurringRouter);
 app.use("/api/reports", reportRouter);
 app.use("/api/settings", settingsRouter);
 app.use("/api/riseguru", riseGuruRouter);
+app.use("/api/shop", shopRouter);
+app.use("/api/einvoice", retailxEinvoiceRouter);
 app.use("/api/ai", aiRouter);
 app.use("/api/admin", adminRouter);
 

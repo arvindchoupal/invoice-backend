@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { pool } from "../config/db";
+import { pool, withTransaction } from "../config/db";
 import { AppError } from "../middleware/error";
 import { requireAuth } from "../middleware/auth";
 import { comparePassword, hashPassword, randomToken, roleForEmail, signToken } from "../utils/auth";
@@ -13,13 +13,48 @@ authRouter.post("/signup", async (req, res, next) => {
     const body = signupSchema.parse(req.body);
     const passwordHash = await hashPassword(body.password);
     const role = roleForEmail(body.email);
-    const [result] = await pool.execute(
-      "INSERT INTO users (name, email, password_hash, role) VALUES (:name, :email, :passwordHash, :role)",
-      { ...body, passwordHash, role },
-    );
-    const id = Number((result as { insertId: number }).insertId);
+    const account = await withTransaction(async (connection) => {
+      const [result] = await connection.execute(
+        "INSERT INTO users (name, email, password_hash, role) VALUES (:name, :email, :passwordHash, :role)",
+        { ...body, passwordHash, role },
+      );
+      const id = Number((result as { insertId: number }).insertId);
+      let foundingMemberNumber: number | null = null;
+      let planName: "free" | "pro" = "free";
+
+      if (role === "user") {
+        const [offerRows] = await connection.execute(
+          "SELECT claim_limit, claimed_count, active FROM launch_offers WHERE offer_key='founding-1000' FOR UPDATE",
+        );
+        const offer = (offerRows as Array<{ claim_limit: number; claimed_count: number; active: number }>)[0];
+
+        if (offer?.active && offer.claimed_count < offer.claim_limit) {
+          foundingMemberNumber = offer.claimed_count + 1;
+          planName = "pro";
+          await connection.execute(
+            "UPDATE launch_offers SET claimed_count=:claimedCount WHERE offer_key='founding-1000'",
+            { claimedCount: foundingMemberNumber },
+          );
+          await connection.execute(
+            "INSERT INTO founding_members (member_number, user_id) VALUES (:memberNumber, :userId)",
+            { memberNumber: foundingMemberNumber, userId: id },
+          );
+        }
+
+        await connection.execute(
+          "INSERT INTO user_plan_usage (user_id, plan_name) VALUES (:userId, :planName) ON DUPLICATE KEY UPDATE plan_name=VALUES(plan_name)",
+          { userId: id, planName },
+        );
+      }
+
+      return { id, foundingMemberNumber, planName };
+    });
+    const { id, foundingMemberNumber, planName } = account;
     const token = signToken({ id, email: body.email, role });
-    res.status(201).json({ token, user: { id, name: body.name, email: body.email, role } });
+    res.status(201).json({
+      token,
+      user: { id, name: body.name, email: body.email, role, plan_name: planName, founding_member_number: foundingMemberNumber },
+    });
   } catch (error: unknown) {
     if ((error as { code?: string }).code === "ER_DUP_ENTRY") return next(new AppError(409, "Email already exists"));
     next(error);
@@ -29,15 +64,20 @@ authRouter.post("/signup", async (req, res, next) => {
 authRouter.post("/login", async (req, res, next) => {
   try {
     const body = loginSchema.parse(req.body);
-    const [rows] = await pool.execute("SELECT id, name, email, role, password_hash FROM users WHERE email = :email", {
+    const [rows] = await pool.execute(`SELECT u.id, u.name, u.email, u.role, u.password_hash,
+      fm.member_number AS founding_member_number, COALESCE(upu.plan_name, 'free') AS plan_name
+      FROM users u
+      LEFT JOIN founding_members fm ON fm.user_id = u.id
+      LEFT JOIN user_plan_usage upu ON upu.user_id = u.id
+      WHERE u.email = :email`, {
       email: body.email,
     });
-    const user = (rows as Array<{ id: number; name: string; email: string; role: "admin" | "user"; password_hash: string }>)[0];
+    const user = (rows as Array<{ id: number; name: string; email: string; role: "admin" | "user"; password_hash: string; founding_member_number: number | null; plan_name: string }>)[0];
     if (!user || !(await comparePassword(body.password, user.password_hash))) throw new AppError(401, "Invalid credentials");
     const role = roleForEmail(user.email, user.role);
     if (role !== user.role) await pool.execute("UPDATE users SET role = :role WHERE id = :id", { role, id: user.id });
     const token = signToken({ id: user.id, email: user.email, role });
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role } });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, role, plan_name: user.plan_name, founding_member_number: user.founding_member_number } });
   } catch (error) {
     next(error);
   }
@@ -73,8 +113,13 @@ authRouter.post("/reset-password", async (req, res, next) => {
 
 authRouter.get("/me", requireAuth, async (req:any, res, next) => {
   try {
-    const [rows] = await pool.execute("SELECT id, name, email, role, avatar_url FROM users WHERE id = :id", { id: req.user!.id });
-    const user = (rows as Array<{ id: number; name: string; email: string; role: "admin" | "user"; avatar_url?: string }>)[0];
+    const [rows] = await pool.execute(`SELECT u.id, u.name, u.email, u.role, u.avatar_url,
+      fm.member_number AS founding_member_number, COALESCE(upu.plan_name, 'free') AS plan_name
+      FROM users u
+      LEFT JOIN founding_members fm ON fm.user_id = u.id
+      LEFT JOIN user_plan_usage upu ON upu.user_id = u.id
+      WHERE u.id = :id`, { id: req.user!.id });
+    const user = (rows as Array<{ id: number; name: string; email: string; role: "admin" | "user"; avatar_url?: string; founding_member_number: number | null; plan_name: string }>)[0];
     if (!user) throw new AppError(404, "User not found");
     const role = roleForEmail(user.email, user.role);
     if (role !== user.role) await pool.execute("UPDATE users SET role = :role WHERE id = :id", { role, id: user.id });

@@ -1,6 +1,6 @@
-import { app } from "./app";
-import { pool } from "./config/db";
-import { env } from "./config/env";
+import { app } from "./src/app";
+import { pool } from "./src/config/db";
+import { env } from "./src/config/env";
 
 app.listen(env.port, "0.0.0.0", () => {
   console.log(`Server running on http://localhost:${env.port}`);

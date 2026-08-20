@@ -29,7 +29,11 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
   }
 
   if (error instanceof AppError) {
-    return res.status(error.statusCode).json({ message: error.message });
+    const provider = (error as AppError & { providerResponse?: unknown }).providerResponse;
+    return res.status(error.statusCode).json({
+      message: error.message,
+      ...(provider ? { provider } : {}),
+    });
   }
 
   if (typeof error === "object" && error && "code" in error) {
