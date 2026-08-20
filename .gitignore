@@ -1,0 +1,11 @@
+# Dependencies installed by the deployment platform
+node_modules/
+
+# Runtime and generated files
+dist/
+logs/
+uploads/
+
+# Local configuration and macOS metadata
+.env
+.DS_Store
