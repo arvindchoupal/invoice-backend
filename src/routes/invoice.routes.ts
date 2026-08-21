@@ -77,9 +77,15 @@ async function clientIdForInvoice(userId: number, body: InvoiceBody, db: DbExecu
     `SELECT id FROM clients
      WHERE user_id = :userId
        AND (
-        (:email IS NOT NULL AND email = :email)
-        OR (:taxId IS NOT NULL AND tax_id = :taxId)
-        OR (LOWER(name) = LOWER(:name) AND COALESCE(email, '') = COALESCE(:email, ''))
+        (:email IS NOT NULL AND email = CONVERT(:email USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        OR (:taxId IS NOT NULL AND tax_id = CONVERT(:taxId USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+        OR (
+          LOWER(name) = LOWER(CONVERT(:name USING utf8mb4) COLLATE utf8mb4_unicode_ci)
+          AND (
+            (:email IS NULL AND email IS NULL)
+            OR email = CONVERT(:email USING utf8mb4) COLLATE utf8mb4_unicode_ci
+          )
+        )
        )
      ORDER BY id DESC
      LIMIT 1`,
