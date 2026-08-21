@@ -120,16 +120,21 @@ invoiceRouter.get("/", async (req:any, res, next) => {
       ? String(req.query.sortBy)
       : "created_at";
     const sortDir = String(req.query.sortDir).toLowerCase() === "asc" ? "ASC" : "DESC";
-    const params = {
+    const params: Record<string, string | number> = {
       userId: req.user!.id,
       search,
-      status,
       limit: pageSize,
       offset,
     };
-    const where = `user_id = :userId
-      AND (:status = 'all' OR status = :status)
-      AND (invoice_number LIKE :search OR customer_name LIKE :search OR customer_email LIKE :search OR customer_tax_id LIKE :search)`;
+    const filters = [
+      "user_id = :userId",
+      "(invoice_number LIKE :search OR customer_name LIKE :search OR customer_email LIKE :search OR customer_tax_id LIKE :search)",
+    ];
+    if (status !== "all") {
+      filters.push("status = :status");
+      params.status = status;
+    }
+    const where = filters.join(" AND ");
       const [rows] = await pool.execute(
         `
         SELECT *
@@ -139,11 +144,7 @@ invoiceRouter.get("/", async (req:any, res, next) => {
         LIMIT ${pageSize}
         OFFSET ${offset}
         `,
-        {
-          userId: req.user!.id,
-          search,
-          status
-        }
+        params,
        );
     const [countRows] = await pool.execute(`SELECT COUNT(*) total FROM invoices WHERE ${where}`, params);
     const [facets] = await pool.execute(
