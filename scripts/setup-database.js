@@ -6,11 +6,11 @@ require("dotenv").config();
 const config = {
   host: process.env.DB_HOST || "localhost",
   port: Number(process.env.DB_PORT || 3306),
-  user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSWORD || "",
-  database: process.env.DB_NAME || "invoice_maker",
-  adminUser:  process.env.DB_USER || "root",
-  adminPassword:  process.env.DB_PASSWORD || "",
+  user: process.env.DB_USER || "u978797906_root",
+  password: process.env.DB_PASSWORD || "Sharma@invoice123",
+  database: process.env.DB_NAME || "u978797906_invoice_maker",
+  adminUser:  process.env.DB_USER || "u978797906_root",
+  adminPassword:  process.env.DB_PASSWORD || "Sharma@invoice123",
 };
 
 
