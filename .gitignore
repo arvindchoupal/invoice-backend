@@ -7,5 +7,5 @@ logs/
 uploads/
 
 # Local configuration and macOS metadata
-.env
+
 .DS_Store
